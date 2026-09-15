@@ -6,7 +6,11 @@ from flask_login import current_user, login_required
 from sqlalchemy import or_
 from werkzeug.security import generate_password_hash
 
-from .email_service import send_new_ticket_notification
+from .email_service import (
+    send_new_ticket_notification,
+    send_ticket_created_email,
+    send_user_notification_emails,
+)
 from .extensions import db
 from .forms import (
     CommentForm,
@@ -55,20 +59,24 @@ def _notification_or_404(notification_id):
 
 def _create_notification(user_id, ticket, event_type, message):
     if not user_id or user_id == current_user.id:
-        return
-    db.session.add(
-        Notification(
-            user_id=user_id,
-            ticket=ticket,
-            event_type=event_type,
-            message=message,
-        )
+        return None
+    notification = Notification(
+        user_id=user_id,
+        ticket=ticket,
+        event_type=event_type,
+        message=message,
     )
+    db.session.add(notification)
+    return notification
 
 
 def _notify_users(user_ids, ticket, event_type, message):
+    notifications = []
     for user_id in set(user_ids):
-        _create_notification(user_id, ticket, event_type, message)
+        notification = _create_notification(user_id, ticket, event_type, message)
+        if notification is not None:
+            notifications.append(notification)
+    return notifications
 
 
 def _safe_next_url(default_endpoint):
@@ -231,6 +239,7 @@ def new_ticket():
     form = TicketForm()
     form.assignee_id.choices = _assignee_choices()
     if form.validate_on_submit():
+        pending_notifications = []
         ticket = Ticket(
             title=form.title.data.strip(),
             category=form.category.data,
@@ -242,13 +251,17 @@ def new_ticket():
         db.session.add(ticket)
         db.session.flush()
         if ticket.assignee_id:
-            _create_notification(
-                ticket.assignee_id,
-                ticket,
-                "assignment",
-                f"{ticket.number} was assigned to you by {current_user.name}.",
+            pending_notifications.append(
+                _create_notification(
+                    ticket.assignee_id,
+                    ticket,
+                    "assignment",
+                    f"{ticket.number} was assigned to you by {current_user.name}.",
+                )
             )
         db.session.commit()
+        send_ticket_created_email(ticket)
+        send_user_notification_emails(pending_notifications)
         send_new_ticket_notification(ticket)
         flash(f"{ticket.number} was submitted.", "success")
         return redirect(url_for("tickets.ticket_detail", ticket_id=ticket.id))
@@ -288,6 +301,7 @@ def add_comment(ticket_id):
     ticket = _ticket_or_404(ticket_id)
     form = CommentForm()
     if form.validate_on_submit():
+        pending_notifications = []
         is_internal = bool(form.is_internal.data and current_user.is_admin)
         comment = TicketComment(
             ticket_id=ticket.id,
@@ -299,20 +313,25 @@ def add_comment(ticket_id):
         db.session.add(comment)
 
         if is_internal:
-            _create_notification(
-                ticket.assignee_id,
-                ticket,
-                "internal_note",
-                f"{current_user.name} added an internal note to {ticket.number}.",
+            pending_notifications.append(
+                _create_notification(
+                    ticket.assignee_id,
+                    ticket,
+                    "internal_note",
+                    f"{current_user.name} added an internal note to {ticket.number}.",
+                )
             )
         else:
-            _notify_users(
-                {ticket.requester_id, ticket.assignee_id},
-                ticket,
-                "reply",
-                f"{current_user.name} replied to {ticket.number}.",
+            pending_notifications.extend(
+                _notify_users(
+                    {ticket.requester_id, ticket.assignee_id},
+                    ticket,
+                    "reply",
+                    f"{current_user.name} replied to {ticket.number}.",
+                )
             )
         db.session.commit()
+        send_user_notification_emails(pending_notifications)
         flash("Reply added.", "success")
     else:
         flash("Enter a reply before posting.", "error")
@@ -337,6 +356,7 @@ def update_ticket(ticket_id):
     ticket.priority = form.priority.data
     ticket.assignee_id = form.assignee_id.data or None
     ticket.internal_notes = (form.internal_notes.data or "").strip() or None
+    pending_notifications = []
 
     if (
         ticket.status in TERMINAL_STATUSES
@@ -347,35 +367,41 @@ def update_ticket(ticket_id):
         ticket.resolved_at = None
 
     if ticket.status != previous_status:
-        _notify_users(
-            {ticket.requester_id, ticket.assignee_id},
-            ticket,
-            "status",
-            (
-                f"{current_user.name} changed {ticket.number} from "
-                f"{previous_status} to {ticket.status}."
-            ),
+        pending_notifications.extend(
+            _notify_users(
+                {ticket.requester_id, ticket.assignee_id},
+                ticket,
+                "status",
+                (
+                    f"{current_user.name} changed {ticket.number} from "
+                    f"{previous_status} to {ticket.status}."
+                ),
+            )
         )
 
     if ticket.priority != previous_priority:
-        _notify_users(
-            {ticket.requester_id, ticket.assignee_id},
-            ticket,
-            "priority",
-            (
-                f"{current_user.name} changed {ticket.number} priority from "
-                f"{previous_priority} to {ticket.priority}."
-            ),
+        pending_notifications.extend(
+            _notify_users(
+                {ticket.requester_id, ticket.assignee_id},
+                ticket,
+                "priority",
+                (
+                    f"{current_user.name} changed {ticket.number} priority from "
+                    f"{previous_priority} to {ticket.priority}."
+                ),
+            )
         )
 
     if ticket.assignee_id != previous_assignee_id:
         if ticket.assignee_id:
             assignee = db.session.get(User, ticket.assignee_id)
-            _create_notification(
-                ticket.assignee_id,
-                ticket,
-                "assignment",
-                f"{current_user.name} assigned {ticket.number} to you.",
+            pending_notifications.append(
+                _create_notification(
+                    ticket.assignee_id,
+                    ticket,
+                    "assignment",
+                    f"{current_user.name} assigned {ticket.number} to you.",
+                )
             )
             assignment_message = (
                 f"{current_user.name} assigned {ticket.number} to "
@@ -384,21 +410,26 @@ def update_ticket(ticket_id):
         else:
             assignment_message = f"{current_user.name} unassigned {ticket.number}."
 
-        _create_notification(
-            ticket.requester_id,
-            ticket,
-            "assignment",
-            assignment_message,
-        )
-        if previous_assignee_id:
+        pending_notifications.append(
             _create_notification(
-                previous_assignee_id,
+                ticket.requester_id,
                 ticket,
                 "assignment",
-                f"{ticket.number} was removed from your assigned queue.",
+                assignment_message,
+            )
+        )
+        if previous_assignee_id:
+            pending_notifications.append(
+                _create_notification(
+                    previous_assignee_id,
+                    ticket,
+                    "assignment",
+                    f"{ticket.number} was removed from your assigned queue.",
+                )
             )
 
     db.session.commit()
+    send_user_notification_emails(pending_notifications)
     flash(f"{ticket.number} was updated.", "success")
     if (
         previous_status not in TERMINAL_STATUSES

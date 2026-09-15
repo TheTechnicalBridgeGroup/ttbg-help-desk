@@ -3,7 +3,7 @@ services:
     name: ttbg-help-desk
     runtime: python
     region: ohio
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: >-
       gunicorn --bind 0.0.0.0:$PORT
@@ -18,9 +18,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        fromDatabase:
-          name: ttbg-help-desk-db
-          property: connectionString
+        sync: false
       - key: ADMIN_NAME
         sync: false
       - key: ADMIN_EMAIL
@@ -29,11 +27,19 @@ services:
         sync: false
       - key: NOTIFICATION_EMAIL
         sync: false
-
-databases:
-  - name: ttbg-help-desk-db
-    region: ohio
-    plan: free
-    databaseName: ttbg_help_desk
-    user: ttbg_help_desk
-    ipAllowList: []
+      - key: PORTAL_BASE_URL
+        value: https://ttbg-help-desk.onrender.com
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_USE_TLS
+        value: true
+      - key: SMTP_USE_SSL
+        value: false

@@ -1,4 +1,6 @@
+import os
 import unittest
+from unittest.mock import patch
 
 from werkzeug.security import generate_password_hash
 
@@ -9,6 +11,16 @@ from app.models import Notification, Ticket, User
 
 class HelpDeskTestCase(unittest.TestCase):
     def setUp(self):
+        self.email_env_patcher = patch.dict(
+            os.environ,
+            {
+                "SMTP_HOST": "",
+                "SMTP_USERNAME": "",
+                "SMTP_PASSWORD": "",
+                "NOTIFICATION_EMAIL": "",
+            },
+        )
+        self.email_env_patcher.start()
         self.app = create_app(
             {
                 "TESTING": True,
@@ -55,6 +67,7 @@ class HelpDeskTestCase(unittest.TestCase):
         with self.app.app_context():
             db.session.remove()
             db.drop_all()
+        self.email_env_patcher.stop()
 
     def login(self, email, password):
         return self.client.post(
@@ -138,6 +151,180 @@ class HelpDeskTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"TTBG-00001", response.data)
         self.assertIn(b"Cannot open scheduling software", response.data)
+
+    def test_ticket_creation_confirmation_uses_requester_account_email(self):
+        self.login("member@example.com", "MemberPassword123!")
+        email_environment = {
+            "PORTAL_BASE_URL": "https://ttbg-help-desk.onrender.com",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_USERNAME": "notifications@example.com",
+            "SMTP_PASSWORD": "test-app-password",
+            "SMTP_FROM_EMAIL": "notifications@example.com",
+            "NOTIFICATION_EMAIL": "",
+        }
+
+        with patch.dict(os.environ, email_environment), patch(
+            "app.email_service._deliver"
+        ) as deliver:
+            response = self.client.post(
+                "/tickets/new",
+                data={
+                    "title": "Email confirmation request",
+                    "category": "Other",
+                    "priority": "Medium",
+                    "description": "Please confirm this request by email.",
+                },
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        deliver.assert_called_once()
+        email_message = deliver.call_args.args[0]
+        self.assertEqual(email_message["To"], "member@example.com")
+        self.assertIn("Ticket received: TTBG-00001", email_message["Subject"])
+        self.assertIn(
+            "https://ttbg-help-desk.onrender.com/tickets/1",
+            email_message.get_content(),
+        )
+
+    def test_public_reply_emails_the_notification_owner(self):
+        ticket_id = self.create_ticket(
+            self.employee_id,
+            title="Reply email request",
+            assignee_id=self.admin_id,
+        )
+        self.login("admin@example.com", "AdminPassword123!")
+        email_environment = {
+            "PORTAL_BASE_URL": "https://ttbg-help-desk.onrender.com",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_USERNAME": "notifications@example.com",
+            "SMTP_PASSWORD": "test-app-password",
+            "SMTP_FROM_EMAIL": "notifications@example.com",
+        }
+
+        with patch.dict(os.environ, email_environment), patch(
+            "app.email_service._deliver"
+        ) as deliver:
+            response = self.client.post(
+                f"/tickets/{ticket_id}/comments",
+                data={"body": "Your access is ready."},
+            )
+
+        self.assertEqual(response.status_code, 302)
+        deliver.assert_called_once()
+        email_message = deliver.call_args.args[0]
+        self.assertEqual(email_message["To"], "member@example.com")
+        self.assertIn("New reply: TTBG-00001", email_message["Subject"])
+        self.assertIn("Kedric Admin replied", email_message.get_content())
+
+    def test_internal_note_email_goes_only_to_assigned_staff(self):
+        with self.app.app_context():
+            other_admin = db.session.get(User, self.other_employee_id)
+            other_admin.role = "admin"
+            db.session.commit()
+        ticket_id = self.create_ticket(
+            self.employee_id,
+            title="Private internal note",
+            assignee_id=self.other_employee_id,
+        )
+        self.login("admin@example.com", "AdminPassword123!")
+        email_environment = {
+            "PORTAL_BASE_URL": "https://ttbg-help-desk.onrender.com",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_USERNAME": "notifications@example.com",
+            "SMTP_PASSWORD": "test-app-password",
+            "SMTP_FROM_EMAIL": "notifications@example.com",
+        }
+
+        with patch.dict(os.environ, email_environment), patch(
+            "app.email_service._deliver"
+        ) as deliver:
+            response = self.client.post(
+                f"/tickets/{ticket_id}/comments",
+                data={
+                    "body": "Requester must not receive this.",
+                    "is_internal": "y",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        deliver.assert_called_once()
+        email_message = deliver.call_args.args[0]
+        self.assertEqual(email_message["To"], "other@example.com")
+        self.assertIn("Internal note: TTBG-00001", email_message["Subject"])
+
+    def test_status_priority_and_assignment_each_send_account_email(self):
+        ticket_id = self.create_ticket(
+            self.employee_id,
+            title="Multiple email updates",
+        )
+        self.login("admin@example.com", "AdminPassword123!")
+        email_environment = {
+            "PORTAL_BASE_URL": "https://ttbg-help-desk.onrender.com",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_USERNAME": "notifications@example.com",
+            "SMTP_PASSWORD": "test-app-password",
+            "SMTP_FROM_EMAIL": "notifications@example.com",
+        }
+
+        with patch.dict(os.environ, email_environment), patch(
+            "app.email_service._deliver"
+        ) as deliver:
+            response = self.client.post(
+                f"/tickets/{ticket_id}/update",
+                data={
+                    "status": "In Progress",
+                    "priority": "High",
+                    "assignee_id": self.admin_id,
+                    "internal_notes": "Starting work.",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(deliver.call_count, 3)
+        messages = [call.args[0] for call in deliver.call_args_list]
+        self.assertEqual(
+            {message["To"] for message in messages}, {"member@example.com"}
+        )
+        subject_prefixes = {
+            message["Subject"].split(":", 1)[0] for message in messages
+        }
+        self.assertEqual(
+            subject_prefixes,
+            {"Status update", "Priority update", "Assignment update"},
+        )
+
+    def test_email_failure_does_not_roll_back_ticket_creation(self):
+        self.login("member@example.com", "MemberPassword123!")
+        email_environment = {
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_USERNAME": "notifications@example.com",
+            "SMTP_PASSWORD": "test-app-password",
+            "SMTP_FROM_EMAIL": "notifications@example.com",
+        }
+
+        with self.assertLogs("app.email_service", level="ERROR"):
+            with patch.dict(os.environ, email_environment), patch(
+                "app.email_service._deliver",
+                side_effect=OSError("mail unavailable"),
+            ):
+                response = self.client.post(
+                    "/tickets/new",
+                    data={
+                        "title": "Ticket survives email outage",
+                        "category": "Other",
+                        "priority": "Low",
+                        "description": "This ticket must remain committed.",
+                    },
+                    follow_redirects=True,
+                )
+
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            ticket = Ticket.query.filter_by(
+                title="Ticket survives email outage"
+            ).one()
+            self.assertEqual(ticket.requester_id, self.employee_id)
 
     def test_employee_can_assign_ticket_during_submission(self):
         self.login("member@example.com", "MemberPassword123!")
