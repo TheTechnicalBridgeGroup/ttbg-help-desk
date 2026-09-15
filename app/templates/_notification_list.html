@@ -1,0 +1,24 @@
+<div class="notification-list{% if not compact %} notification-list-page{% endif %}">
+    {% if items %}
+        {% for notification in items %}
+            <form method="post" action="{{ url_for('tickets.open_notification', notification_id=notification.id) }}" class="notification-item-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="notification-item{% if notification.is_unread %} unread{% endif %}">
+                    <span class="notification-icon notification-icon-{{ notification.event_type }}" aria-hidden="true"></span>
+                    <span class="notification-copy">
+                        <strong>{{ notification.message }}</strong>
+                        <span>{{ notification.ticket.title }}</span>
+                        <time datetime="{{ notification.created_at.isoformat() }}">{{ notification.created_at.strftime("%b %d, %Y at %I:%M %p") }} UTC</time>
+                    </span>
+                    {% if notification.is_unread %}<span class="unread-dot" aria-label="Unread"></span>{% endif %}
+                </button>
+            </form>
+        {% endfor %}
+    {% else %}
+        <div class="notification-empty">
+            <span aria-hidden="true">✓</span>
+            <strong>You’re all caught up</strong>
+            <p>Replies, assignments, and ticket updates will appear here.</p>
+        </div>
+    {% endif %}
+</div>

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}New Ticket | TTBG Help Desk{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container narrow">
+        <a class="back-link" href="{{ url_for('tickets.dashboard') }}">← Back to tickets</a>
+        <div class="page-heading simple-heading">
+            <div>
+                <p class="eyebrow">Get technical support</p>
+                <h1>Submit a ticket</h1>
+                <p>Give us enough detail to understand the request and what you were trying to accomplish.</p>
+            </div>
+        </div>
+        <form method="post" class="card form-card">
+            {{ form.hidden_tag() }}
+            <div class="field">
+                {{ form.title.label }}
+                {{ form.title(placeholder="Example: Need access to the mentor dashboard") }}
+                {% for error in form.title.errors %}<span class="error">{{ error }}</span>{% endfor %}
+            </div>
+            <div class="form-grid two-column">
+                <div class="field">
+                    {{ form.category.label }}
+                    {{ form.category() }}
+                    {% for error in form.category.errors %}<span class="error">{{ error }}</span>{% endfor %}
+                </div>
+                <div class="field">
+                    {{ form.priority.label }}
+                    {{ form.priority() }}
+                    {% for error in form.priority.errors %}<span class="error">{{ error }}</span>{% endfor %}
+                </div>
+            </div>
+            <div class="field">
+                {{ form.assignee_id.label }}
+                {{ form.assignee_id() }}
+                {% for error in form.assignee_id.errors %}<span class="error">{{ error }}</span>{% endfor %}
+                <small class="field-help">Choose the administrator who should own this request, or leave it unassigned.</small>
+            </div>
+            <div class="field">
+                {{ form.description.label }}
+                {{ form.description(rows="9", placeholder="What happened or what needs to be built? Include any error messages, affected account, browser/device, deadline, and steps already tried.") }}
+                {% for error in form.description.errors %}<span class="error">{{ error }}</span>{% endfor %}
+                <small class="field-help">For security concerns, do not paste passwords, authentication codes, or private keys.</small>
+            </div>
+            <div class="form-actions">
+                <a class="secondary-button" href="{{ url_for('tickets.dashboard') }}">Cancel</a>
+                {{ form.submit(class_="primary-button") }}
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

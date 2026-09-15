@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} | TTBG Help Desk{% endblock %}
+{% block content %}
+<section class="section"><div class="container login-wrap"><div class="card empty-state"><div class="empty-icon">!</div><h1>{{ code }}</h1><p>{{ message }}</p><a class="primary-button" href="{{ url_for('tickets.dashboard') if current_user.is_authenticated else url_for('auth.login') }}">Return to help desk</a></div></div></section>
+{% endblock %}

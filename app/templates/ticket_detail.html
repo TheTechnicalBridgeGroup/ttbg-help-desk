@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.number }} | TTBG Help Desk{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <a class="back-link" href="{{ url_for('tickets.dashboard') if ticket.is_open else url_for('tickets.closed_tickets') }}">← Back to {{ "active tickets" if ticket.is_open else "closed / resolved tickets" }}</a>
+        <div class="detail-layout">
+            <div class="detail-main">
+                <article class="card ticket-card">
+                    <div class="ticket-heading">
+                        <div>
+                            <div class="ticket-kicker">
+                                <span>{{ ticket.number }}</span>
+                                <span class="status status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span>
+                            </div>
+                            <h1>{{ ticket.title }}</h1>
+                            <p>Submitted by <strong>{{ ticket.requester.name }}</strong> on {{ ticket.created_at.strftime("%B %d, %Y at %I:%M %p") }} UTC</p>
+                        </div>
+                        <span class="priority priority-{{ ticket.priority|lower }}">{{ ticket.priority }} priority</span>
+                    </div>
+
+                    <div class="ticket-meta">
+                        <div><span>Request type</span><strong>{{ ticket.category }}</strong></div>
+                        <div><span>Assigned to</span><strong>{{ ticket.assignee.name if ticket.assignee else "Unassigned" }}</strong></div>
+                        <div><span>Last updated</span><strong>{{ ticket.updated_at.strftime("%b %d, %Y") }}</strong></div>
+                    </div>
+
+                    <div class="description-block">
+                        <h2>Request details</h2>
+                        <p>{{ ticket.description }}</p>
+                    </div>
+                </article>
+
+                <section class="conversation">
+                    <div class="section-title">
+                        <h2>Conversation</h2>
+                        <span>{{ comments|length }} {{ "reply" if comments|length == 1 else "replies" }}</span>
+                    </div>
+                    {% if comments %}
+                        <div class="comment-list">
+                        {% for comment in comments %}
+                            <article class="comment {% if comment.is_internal %}internal-comment{% endif %}">
+                                <div class="comment-avatar">{{ comment.author.name[:1]|upper }}</div>
+                                <div class="comment-body">
+                                    <div class="comment-header">
+                                        <strong>{{ comment.author.name }}</strong>
+                                        {% if comment.author.is_admin %}<span>TTBG Support</span>{% endif %}
+                                        {% if comment.is_internal %}<span class="internal-label">Internal</span>{% endif %}
+                                        <time>{{ comment.created_at.strftime("%b %d, %Y at %I:%M %p") }} UTC</time>
+                                    </div>
+                                    <p>{{ comment.body }}</p>
+                                </div>
+                            </article>
+                        {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-conversation">No replies yet. Add a message below if you have more information.</div>
+                    {% endif %}
+
+                    <form method="post" action="{{ url_for('tickets.add_comment', ticket_id=ticket.id) }}" class="card reply-card">
+                        {{ comment_form.hidden_tag() }}
+                        <div class="field">
+                            {{ comment_form.body.label }}
+                            {{ comment_form.body(rows="5", placeholder="Write an update or ask a question…") }}
+                        </div>
+                        <div class="reply-actions">
+                            {% if current_user.is_admin %}
+                            <label class="checkbox-row">
+                                {{ comment_form.is_internal() }}
+                                <span>{{ comment_form.is_internal.label.text }}</span>
+                            </label>
+                            {% else %}<span></span>{% endif %}
+                            {{ comment_form.submit(class_="primary-button") }}
+                        </div>
+                    </form>
+                </section>
+            </div>
+
+            {% if current_user.is_admin %}
+            <aside class="card admin-panel">
+                <p class="eyebrow">Admin controls</p>
+                <h2>Manage ticket</h2>
+                <form method="post" action="{{ url_for('tickets.update_ticket', ticket_id=ticket.id) }}">
+                    {{ update_form.hidden_tag() }}
+                    <div class="field">{{ update_form.status.label }}{{ update_form.status() }}</div>
+                    <div class="field">{{ update_form.priority.label }}{{ update_form.priority() }}</div>
+                    <div class="field">{{ update_form.assignee_id.label }}{{ update_form.assignee_id() }}</div>
+                    <div class="field">
+                        {{ update_form.internal_notes.label }}
+                        {{ update_form.internal_notes(rows="5", placeholder="Private context for administrators") }}
+                        <small class="field-help">Always hidden from the requester.</small>
+                    </div>
+                    {{ update_form.submit(class_="primary-button full-width") }}
+                </form>
+            </aside>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

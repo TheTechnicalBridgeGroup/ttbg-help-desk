@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Notifications | TTBG Help Desk{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container notification-page-container">
+        <div class="page-heading">
+            <div>
+                <p class="eyebrow">Updates that need your attention</p>
+                <h1>Notifications</h1>
+                <p>Review replies, assignments, status changes, and other updates connected to your tickets.</p>
+            </div>
+            {% if notification_unread_count %}
+                <form method="post" action="{{ url_for('tickets.read_all_notifications') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ request.full_path }}">
+                    <button class="secondary-button" type="submit">Mark all as read</button>
+                </form>
+            {% endif %}
+        </div>
+        <div class="card notification-history-card">
+            {% with items=notification_items, compact=false %}
+                {% include "_notification_list.html" %}
+            {% endwith %}
+        </div>
+    </div>
+</section>
+{% endblock %}

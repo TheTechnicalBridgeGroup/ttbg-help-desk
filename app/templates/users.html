@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Team Accounts | TTBG Help Desk{% endblock %}
+
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container">
+        <div class="page-heading">
+            <div>
+                <p class="eyebrow">Administration</p>
+                <h1>Team accounts</h1>
+                <p>Create sign-ins for coworkers and control who can access the help desk.</p>
+            </div>
+        </div>
+        <div class="users-layout">
+            <div class="card table-card">
+                <div class="card-heading"><h2>People with access</h2><span>{{ users|length }} accounts</span></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead>
+                        <tbody>
+                        {% for user in users %}
+                            <tr>
+                                <td><strong>{{ user.name }}</strong><small>{{ user.email }}</small></td>
+                                <td>{{ "Administrator" if user.is_admin else "Coworker" }}</td>
+                                <td><span class="account-status {{ 'active' if user.active else 'inactive' }}">{{ "Active" if user.active else "Inactive" }}</span></td>
+                                <td class="align-right">
+                                    <div class="action-row">
+                                        <a class="text-action" href="{{ url_for('tickets.reset_user_password', user_id=user.id) }}">Reset password</a>
+                                        {% if user.id != current_user.id %}
+                                        <form method="post" action="{{ url_for('tickets.toggle_user', user_id=user.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button class="text-action" type="submit">{{ "Deactivate" if user.active else "Activate" }}</button>
+                                        </form>
+                                        {% else %}<small>Current account</small>{% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <form method="post" class="card user-form">
+                {{ form.hidden_tag() }}
+                <p class="eyebrow">Invite coworker</p>
+                <h2>Create an account</h2>
+                <p>Give the temporary password to the coworker securely. They must replace it at first sign-in.</p>
+                <div class="field">{{ form.name.label }}{{ form.name() }}{% for error in form.name.errors %}<span class="error">{{ error }}</span>{% endfor %}</div>
+                <div class="field">{{ form.email.label }}{{ form.email() }}{% for error in form.email.errors %}<span class="error">{{ error }}</span>{% endfor %}</div>
+                <div class="field">{{ form.role.label }}{{ form.role() }}</div>
+                <div class="field">{{ form.temporary_password.label }}{{ form.temporary_password(autocomplete="new-password") }}{% for error in form.temporary_password.errors %}<span class="error">{{ error }}</span>{% endfor %}</div>
+                <div class="field">{{ form.confirm_password.label }}{{ form.confirm_password(autocomplete="new-password") }}{% for error in form.confirm_password.errors %}<span class="error">{{ error }}</span>{% endfor %}</div>
+                {{ form.submit(class_="primary-button full-width") }}
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

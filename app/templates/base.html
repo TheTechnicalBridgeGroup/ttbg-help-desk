@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#102b46">
+    <title>{% block title %}TTBG Help Desk{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</head>
+<body>
+    <header class="site-header">
+        <div class="container header-inner">
+            <a class="brand" href="{{ url_for('tickets.dashboard') if current_user.is_authenticated else url_for('auth.login') }}">
+                <img src="{{ url_for('static', filename='img/ttbg-logo.png') }}" alt="The Technical Bridge Group">
+                <span>Help Desk</span>
+            </a>
+            {% if current_user.is_authenticated %}
+            <nav class="header-nav" aria-label="Help desk navigation">
+                <a href="{{ url_for('tickets.dashboard') }}">Tickets</a>
+                <a href="{{ url_for('tickets.new_ticket') }}">New ticket</a>
+                <a href="{{ url_for('tickets.closed_tickets') }}">Closed / resolved</a>
+                {% if current_user.is_admin %}
+                    <a href="{{ url_for('tickets.manage_users') }}">Team</a>
+                {% endif %}
+                <details class="notification-menu" data-feed-url="{{ url_for('tickets.notification_feed') }}">
+                    <summary aria-label="Notifications{% if notification_unread_count %}: {{ notification_unread_count }} unread{% endif %}">
+                        <svg aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+                        </svg>
+                        <span class="notification-badge"{% if not notification_unread_count %} hidden{% endif %}>{{ "9+" if notification_unread_count > 9 else notification_unread_count }}</span>
+                    </summary>
+                    <div class="notification-dropdown">
+                        <div class="notification-dropdown-heading">
+                            <div>
+                                <strong>Notifications</strong>
+                                <span class="notification-unread-label">{{ notification_unread_count }} unread</span>
+                            </div>
+                            <form class="notification-mark-all" method="post" action="{{ url_for('tickets.read_all_notifications') }}"{% if not notification_unread_count %} hidden{% endif %}>
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="next" value="{{ request.full_path }}">
+                                <button class="text-action" type="submit">Mark all read</button>
+                            </form>
+                        </div>
+                        <div class="notification-feed">
+                            {% with items=notification_dropdown_items, compact=true %}
+                                {% include "_notification_list.html" %}
+                            {% endwith %}
+                        </div>
+                        <a class="notification-history-link" href="{{ url_for('tickets.notifications') }}">View all notifications</a>
+                    </div>
+                </details>
+                <div class="account-menu">
+                    <span>{{ current_user.name }}</span>
+                    <a href="{{ url_for('auth.change_password') }}">Password</a>
+                    <form method="post" action="{{ url_for('auth.logout') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="link-button" type="submit">Sign out</button>
+                    </form>
+                </div>
+            </nav>
+            {% endif %}
+        </div>
+    </header>
+
+    <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="container flash-stack">
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-inner">
+            <span>TTBG Internal Help Desk</span>
+            <span>© 2026 The Technical Bridge Group™</span>
+        </div>
+    </footer>
+</body>
+</html>

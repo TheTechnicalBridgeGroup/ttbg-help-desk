@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} | TTBG Help Desk{% endblock %}
+
+{% block content %}
+<section class="section dashboard-section">
+    <div class="container">
+        <div class="page-heading">
+            <div>
+                <p class="eyebrow">{{ eyebrow }}</p>
+                <h1>{{ page_title }}</h1>
+                <p>{{ description }}</p>
+            </div>
+            <a class="primary-button" href="{{ url_for('tickets.new_ticket') }}">+ Submit a ticket</a>
+        </div>
+
+        <div class="stat-grid">
+            {% for label, value, card_class in summary_cards %}
+                <div class="stat-card {{ card_class }}"><span>{{ label }}</span><strong>{{ value }}</strong></div>
+            {% endfor %}
+        </div>
+
+        <form class="filter-bar card" method="get">
+            <div class="filter-search">
+                <label class="sr-only" for="q">Search tickets</label>
+                <input id="q" name="q" value="{{ search_term }}" placeholder="Search by ticket number, title, or details">
+            </div>
+            <div>
+                <label class="sr-only" for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="">All statuses</option>
+                    {% for value, label in statuses %}
+                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="sr-only" for="category">Type</label>
+                <select id="category" name="category">
+                    <option value="">All request types</option>
+                    {% for value, label in categories %}
+                        <option value="{{ value }}" {% if selected_category == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="secondary-button" type="submit">Filter</button>
+            {% if search_term or selected_status or selected_category %}
+                <a class="clear-link" href="{{ url_for(clear_endpoint) }}">Clear</a>
+            {% endif %}
+        </form>
+
+        <div class="card table-card">
+            {% if tickets %}
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticket</th>
+                            <th>Type</th>
+                            {% if current_user.is_admin %}<th>Requester</th>{% endif %}
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ticket in tickets %}
+                        <tr>
+                            <td>
+                                <a class="ticket-link" href="{{ url_for('tickets.ticket_detail', ticket_id=ticket.id) }}">
+                                    <span>{{ ticket.number }}</span>
+                                    {{ ticket.title }}
+                                </a>
+                            </td>
+                            <td>{{ ticket.category }}</td>
+                            {% if current_user.is_admin %}<td>{{ ticket.requester.name }}</td>{% endif %}
+                            <td><span class="priority priority-{{ ticket.priority|lower }}">{{ ticket.priority }}</span></td>
+                            <td><span class="status status-{{ ticket.status|lower|replace(' ', '-') }}">{{ ticket.status }}</span></td>
+                            <td>{{ ticket.updated_at.strftime("%b %d, %Y") }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">✓</div>
+                <h2>No tickets found</h2>
+                <p>{{ "Try clearing your filters." if search_term or selected_status or selected_category else empty_message }}</p>
+                {% if not archived %}
+                    <a class="secondary-button" href="{{ url_for('tickets.new_ticket') }}">Submit the first ticket</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

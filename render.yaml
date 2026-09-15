@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: ttbg-help-desk
+    runtime: python
+    region: ohio
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: >-
+      gunicorn --bind 0.0.0.0:$PORT
+      --workers 1
+      --threads 4
+      --timeout 120
+      run:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ttbg-help-desk-db
+          property: connectionString
+      - key: ADMIN_NAME
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: NOTIFICATION_EMAIL
+        sync: false
+
+databases:
+  - name: ttbg-help-desk-db
+    region: ohio
+    plan: free
+    databaseName: ttbg_help_desk
+    user: ttbg_help_desk
+    ipAllowList: []
