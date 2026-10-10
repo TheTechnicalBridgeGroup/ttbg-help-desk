@@ -1,3 +1,8 @@
+# Password recovery and marketplace branding update
+
+See **UPDATE_GUIDE.md** for deployment, email configuration, security protections,
+and live acceptance checks.
+
 # TTBG Internal Help Desk
 
 A private ticketing system for The Technical Bridge Group. Every human-facing

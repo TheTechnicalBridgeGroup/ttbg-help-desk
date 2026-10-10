@@ -1,7 +1,9 @@
 # Deploy the TTBG Help Desk to Render
 
-The included `render.yaml` creates both the Python web service and a private
-Render PostgreSQL database.
+For an existing TTBG service, follow **UPDATE_GUIDE.md** first.
+
+The included `render.yaml` configures the Python web service. Supply your existing
+`DATABASE_URL`; it does not provision a database.
 
 ## 1. Put the project in GitHub
 
@@ -32,9 +34,8 @@ listed by `git status`.
    - `NOTIFICATION_EMAIL`: optional inbox that receives new-ticket notices.
 5. Create the Blueprint and wait for the deploy to finish.
 
-`SECRET_KEY` and `DATABASE_URL` are configured automatically by the Blueprint.
-The database blocks public connections and communicates with the web service
-over Render's private network.
+`SECRET_KEY` is generated for a new Blueprint. Supply `DATABASE_URL` for your
+chosen database and preserve your existing values when updating a service.
 
 ## 3. Verify before inviting coworkers
 
@@ -75,5 +76,4 @@ permit it. Do not use a normal Google account password.
 - Create and deactivate users from **Team**.
 - Use **Reset password** when a coworker loses access.
 - Render automatically deploys future commits to `main`.
-- Upgrade the free database before relying on the system for long-term
-  production records, according to Render's current retention limits.
+- Keep regular database backups and use the retention settings required by your team.

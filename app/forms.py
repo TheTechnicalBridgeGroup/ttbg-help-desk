@@ -140,3 +140,14 @@ class PasswordResetForm(FlaskForm):
         validators=[DataRequired(), EqualTo("temporary_password")],
     )
     submit = SubmitField("Reset password")
+
+
+class ForgotPasswordForm(FlaskForm):
+    email = StringField("Work email", validators=[DataRequired(), Email(), Length(max=255)])
+    submit = SubmitField("Send reset link")
+
+
+class EmailPasswordResetForm(FlaskForm):
+    new_password = PasswordField("New password", validators=[DataRequired(), Length(min=12, max=128)])
+    confirm_password = PasswordField("Confirm new password", validators=[DataRequired(), EqualTo("new_password")])
+    submit = SubmitField("Reset password")

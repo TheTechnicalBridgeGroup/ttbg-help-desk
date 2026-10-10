@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 
+from flask import current_app
 from flask_login import UserMixin
+import hashlib
+import hmac
 
 from .extensions import db, login_manager
 
@@ -38,6 +41,13 @@ class User(UserMixin, db.Model):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+
+    def password_fingerprint(self):
+        return hmac.new(current_app.secret_key.encode(), self.password_hash.encode(), hashlib.sha256).hexdigest()
+
+    def get_id(self):
+        # Password changes invalidate all previously issued login sessions.
+        return f"{self.id}:{self.password_fingerprint()}"
 
     @property
     def is_active(self):
@@ -155,6 +165,25 @@ class Notification(db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     try:
-        return db.session.get(User, int(user_id))
+        uid, fingerprint = user_id.split(":", 1)
+        user = db.session.get(User, int(uid))
+        if user and user.active and hmac.compare_digest(fingerprint, user.password_fingerprint()):
+            return user
+        return None
     except (TypeError, ValueError):
         return None
+
+
+class PasswordResetToken(db.Model):
+    __tablename__ = "password_reset_tokens"
+    token_hash = db.Column(db.String(64), primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False, index=True)
+    password_fingerprint = db.Column(db.String(64), nullable=False)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)
+
+
+class AuthRateLimit(db.Model):
+    __tablename__ = "auth_rate_limits"
+    key = db.Column(db.String(64), primary_key=True)
+    count = db.Column(db.Integer, nullable=False, default=0)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False, index=True)

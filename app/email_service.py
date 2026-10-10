@@ -216,3 +216,39 @@ def _env_flag(name, default=False):
     if raw_value is None:
         return default
     return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _send_account_email(recipient, subject, body):
+    # Recovery messages must never use plaintext SMTP or log their contents.
+    if not _smtp_is_configured() or not (
+        _env_flag("SMTP_USE_SSL") or _env_flag("SMTP_USE_TLS", default=True)
+    ):
+        current_app.logger.error("Account email requires configured SMTP with TLS or SSL.")
+        return False
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = _sender_address()
+    message["To"] = recipient
+    message.set_content(body)
+    try:
+        _deliver(message)
+    except Exception:
+        current_app.logger.error("Account email delivery failed; check SMTP settings.")
+        return False
+    return True
+
+
+def send_password_reset_email(recipient, reset_url):
+    return _send_account_email(recipient, "Reset your TTBG Help Desk password",
+        "A password reset was requested for your TTBG Help Desk account.\n\n"
+        f"Choose a new password: {reset_url}\n\n"
+        "This link expires in 15 minutes and can be used once. Do not forward it.\n"
+        "If you did not request this, you can ignore this email; your password is unchanged.\n"
+        "For repeated unexpected requests, contact your TTBG administrator directly.\n")
+
+
+def send_password_changed_email(recipient):
+    return _send_account_email(recipient, "Your TTBG Help Desk password was changed",
+        "Your TTBG Help Desk password was changed. Previous sign-in sessions and reset links "
+        "are no longer valid.\n\nIf this was not you, contact your TTBG administrator "
+        "immediately through a known contact method.\n")

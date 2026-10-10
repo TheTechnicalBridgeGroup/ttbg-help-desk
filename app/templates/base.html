@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#102b46">
     <title>{% block title %}TTBG Help Desk{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon/favicon.ico') }}">
     <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <div class="brand-bar"><div class="container"><span>THE TECHNICAL BRIDGE GROUP</span><span>Team help desk</span></div></div>
     <header class="site-header">
         <div class="container header-inner">
             <a class="brand" href="{{ url_for('tickets.dashboard') if current_user.is_authenticated else url_for('auth.login') }}">
-                <img src="{{ url_for('static', filename='img/ttbg-logo.png') }}" alt="The Technical Bridge Group">
+                <img src="{{ url_for('static', filename='img/marketplace-logo.png') }}" alt="The Technical Bridge Group">
                 <span>Help Desk</span>
             </a>
             {% if current_user.is_authenticated %}
@@ -66,7 +66,7 @@
         </div>
     </header>
 
-    <main>
+    <main id="content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="container flash-stack">
@@ -81,8 +81,8 @@
 
     <footer class="site-footer">
         <div class="container footer-inner">
-            <span>TTBG Internal Help Desk</span>
-            <span>© 2026 The Technical Bridge Group™</span>
+            <div><strong>BE THE BRIDGE.</strong><p>Supporting the people behind the mission.</p></div>
+            <div><a href="https://www.thetechnicalbridgegroup.com/">Visit TTBG ↗</a><p>© 2026 The Technical Bridge Group™ · Team help desk</p></div>
         </div>
     </footer>
 </body>

@@ -562,8 +562,10 @@ def reset_user_password(user_id):
     if form.validate_on_submit():
         user.password_hash = generate_password_hash(form.temporary_password.data)
         user.must_change_password = True
-        user.active = True
         db.session.commit()
+        from .password_security import submit_account_email
+        from .email_service import send_password_changed_email
+        submit_account_email(send_password_changed_email, user.email)
         flash(f"Password reset for {user.name}.", "success")
         return redirect(url_for("tickets.manage_users"))
 

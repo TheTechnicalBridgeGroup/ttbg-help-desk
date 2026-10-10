@@ -41,7 +41,13 @@ def create_app(test_config=None):
         app.config["SESSION_COOKIE_SECURE"] = True
         app.config["PREFERRED_URL_SCHEME"] = "https"
 
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    if _is_production() and not app.config.get("TESTING"):
+        if len(app.secret_key or "") < 32 or app.secret_key == "development-only-change-me":
+            raise RuntimeError("Set SECRET_KEY to a strong random value of at least 32 characters.")
+    app.config.setdefault("PORTAL_BASE_URL", os.getenv("PORTAL_BASE_URL", "").strip().rstrip("/"))
+    # Render's reverse proxy supplies one trusted forwarding hop.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -83,7 +89,7 @@ def create_app(test_config=None):
     @app.after_request
     def add_security_headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "same-origin"
+        response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Permissions-Policy"] = (
             "camera=(), microphone=(), geolocation=()"
@@ -144,6 +150,15 @@ def create_app(test_config=None):
         db.session.add(user)
         db.session.commit()
         click.echo(f"Created {role}: {normalized_email}")
+
+    @app.cli.command("cleanup-auth")
+    def cleanup_auth():
+        """Remove expired reset tokens and rate-limit buckets (run daily)."""
+        from .models import AuthRateLimit, PasswordResetToken, utc_now
+        AuthRateLimit.query.filter(AuthRateLimit.expires_at < utc_now()).delete()
+        PasswordResetToken.query.filter(PasswordResetToken.expires_at < utc_now()).delete()
+        db.session.commit()
+        click.echo("Expired authentication records removed.")
 
     with app.app_context():
         db.create_all()
